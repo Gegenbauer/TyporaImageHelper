@@ -1,7 +1,6 @@
 package com.gegenbauer.typora.imagehelper
 
 import java.io.File
-import java.util.regex.Pattern
 
 private const val TEMP_FILE_PREFIX = "temp"
 private const val UNUSED_IMAGE_FILE_DIR_NAME = "unused_image"
@@ -9,9 +8,9 @@ private const val UNUSED_IMAGE_FILE_DIR_NAME = "unused_image"
 private val migrationFileInfoMap = mutableMapOf<String, MigrationFileInfo>()
 
 /**
- * pattern to match image reference in md file
+ * regex to match image reference in md file
  */
-private val mdImageRefPattern = Pattern.compile("^!\\[[^]]*]\\(([^)]*)\\)")
+private val mdImageRefRegex = Regex("!\\[[^]]*]\\(([^)]*)\\)")
 private var rule = MigrationRule.RULE_CURRENT
 
 /**
@@ -112,9 +111,10 @@ private fun checkAndModifyMdContent(file: File) {
     var isFileContentModified = false
     file.forEachLine { line ->
         run loop@ {
-            val matcher = mdImageRefPattern.matcher(line)
-            if (matcher.find()) {
-                val originMdRef = matcher.group(1)
+            val matchResults = mdImageRefRegex.findAll(line)
+            var tempLine = line
+            matchResults.forEach {
+                val originMdRef = it.groupValues[1]
                 val filename = originMdRef.substringAfterLast("/")
                 val migrationFileInfo = migrationFileInfoMap[filename]
                 if (migrationFileInfo != null) {
@@ -126,13 +126,12 @@ private fun checkAndModifyMdContent(file: File) {
                     rule.setTargetMdReference(migrationFileInfo)
                     if (migrationFileInfo.targetMdReference != originMdRef) {
                         println("modify line, origin: $originMdRef, target: ${migrationFileInfo.targetMdReference}")
-                        modifiedContent.appendLine(line.replace(originMdRef, migrationFileInfo.targetMdReference))
+                        tempLine = tempLine.replace(originMdRef, migrationFileInfo.targetMdReference)
                         isFileContentModified = true
-                        return@loop
                     }
                 }
             }
-            modifiedContent.appendLine(line)
+            modifiedContent.appendLine(tempLine)
         }
     }
     if (isFileContentModified) {
@@ -143,4 +142,3 @@ private fun checkAndModifyMdContent(file: File) {
         tempFile.delete()
     }
 }
-
