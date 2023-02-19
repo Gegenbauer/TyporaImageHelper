@@ -9,7 +9,9 @@ import java.io.File
 data class MigrationFileInfo(
     val imageFilename: String,
     val imageFile: File,
+    var targetPath: String = "",
     var referredMdFile: File? = null,
+    var targetMdReference: String = ""
 ) {
     fun getTargetImageFilePathByRule(rule: MigrationRule): String {
         return when(rule) {
@@ -27,7 +29,7 @@ data class MigrationFileInfo(
                 val targetFile = File(targetPath, imageFilename)
                 targetFile.absolutePath
             }
-        }
+        }.apply { targetPath = this }
     }
 
     fun getTargetMdReferenceByRule(rule: MigrationRule): String {
@@ -41,7 +43,7 @@ data class MigrationFileInfo(
             MigrationRule.RULE_SPECIFIC -> {
                 "${targetPath}/${imageFile.name}"
             }
-        }
+        }.apply { targetMdReference = this }
     }
 
     override fun hashCode(): Int {
