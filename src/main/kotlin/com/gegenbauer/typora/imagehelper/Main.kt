@@ -7,6 +7,7 @@ import java.lang.StringBuilder
 import java.util.regex.Pattern
 
 private const val TEMP_FILE_PREFIX = "temp"
+private const val UNUSED_IMAGE_FILE_DIR_NAME = "unused_image"
 
 private val imageFileExt = hashSetOf(
     "png",
@@ -16,6 +17,10 @@ private val imageFileExt = hashSetOf(
 private val mdFileExt = hashSetOf(
     "md",
     "markdown",
+)
+private val plantUmlFileExt = hashSetOf(
+    "puml",
+    "plantuml",
 )
 
 private val migrationFileInfoMap = mutableMapOf<String, MigrationFileInfo>()
@@ -31,6 +36,11 @@ private var rule = MigrationRule.RULE_CURRENT
  * only valid when rule is RULE_SPECIFIC
  */
 var targetPath = ""
+
+/**
+ * target dir to sort images
+ */
+var typoraRootDir = ""
 
 // TODO 进一步验证功能，重构代码，编写单元测试
 fun main(args: Array<String>) {
@@ -51,8 +61,8 @@ fun main(args: Array<String>) {
     }
 
     runCatching {
-        val typoraDir = args[0]
-        if (!isDirValid(typoraDir)) {
+        typoraRootDir = args[0]
+        if (!isDirValid(typoraRootDir)) {
             return
         }
 
@@ -67,16 +77,23 @@ fun main(args: Array<String>) {
         println("rule: $rule, targetPath: $targetPath")
 
         // collect all images and md files
-        collectImagesFromDir(typoraDir, File::isImage).forEach {
+        collectFilesFromDir(typoraRootDir, File::isImage).forEach {
             if (migrationFileInfoMap.containsKey(it.name)) {
                 println("duplicate image file: ${it.absolutePath}")
             }
             migrationFileInfoMap[it.name] = MigrationFileInfo(it.name, it)
         }
-        val mdFiles = collectImagesFromDir(typoraDir, File::isMd)
+        val mdFiles = collectFilesFromDir(typoraRootDir, File::isMd)
+        val plantUmlFiles = collectFilesFromDir(typoraRootDir, File::isPlantUml)
 
         // modify md file and move images to path from destImages
         mdFiles.forEach { checkAndModifyMdContent(it) }
+
+        // move unused images to unused_image folder
+        moveUnusedImagesToUnusedImageFolder()
+
+        // move the plantuml file with same name of image file to the same folder of image file
+        plantUmlFiles.forEach { movePlantUmlFileToSameFolderWithImageFile(it) }
 
     }.onFailure {
         when (it) {
@@ -84,6 +101,36 @@ fun main(args: Array<String>) {
             else -> println("unknown error: ${it.message}")
         }
     }
+}
+
+private fun moveUnusedImagesToUnusedImageFolder() {
+    val unusedImageDir = File(typoraRootDir, UNUSED_IMAGE_FILE_DIR_NAME)
+    if (!unusedImageDir.exists()) {
+        unusedImageDir.mkdirs()
+    }
+    migrationFileInfoMap.values.filter { it.referredMdFile == null }.forEach {
+        println("move unused image: ${it.imageFile.absolutePath} to ${unusedImageDir.absolutePath}")
+        it.imageFile.xCopyTo(File(unusedImageDir, it.imageFile.name).absolutePath)
+    }
+}
+
+private fun movePlantUmlFileToSameFolderWithImageFile(plantUmlFile: File) {
+    val imageFileName = plantUmlFile.nameWithoutExtension
+    // find the image file with same name
+    val migrationFileInfo = migrationFileInfoMap.entries.find { it.key.getFilenameWithoutExt() == imageFileName }?.value
+    if (migrationFileInfo != null) {
+        val targetPath = "${migrationFileInfo.targetPath.getParentPath()}/${plantUmlFile.name}"
+        println("move plantuml file: ${plantUmlFile.absolutePath} to $targetPath")
+        plantUmlFile.xCopyTo(targetPath)
+    }
+}
+
+private fun String.getFilenameWithoutExt(): String {
+    return substringAfterLast(File.separator)
+}
+
+private fun String.getParentPath(): String {
+    return substringBeforeLast(File.separator)
 }
 
 /**
@@ -103,8 +150,9 @@ private fun checkAndModifyMdContent(file: File) {
             if (migrationFileInfo != null) {
                 migrationFileInfo.referredMdFile = file
                 val targetImageFilePath = migrationFileInfo.getTargetImageFilePathByRule(rule)
-                if (targetImageFilePath != migrationFileInfo.imageFile.absolutePath) {
-                    println("move image: ${migrationFileInfo.imageFile.absolutePath} to ${migrationFileInfo.getTargetImageFilePathByRule(rule)}")
+                val sourceAbsolutePath = migrationFileInfo.imageFile.absolutePath
+                if (targetImageFilePath != sourceAbsolutePath) {
+                    println("move image: $sourceAbsolutePath to ${migrationFileInfo.getTargetImageFilePathByRule(rule)}")
                     migrationFileInfo.imageFile.xCopyTo(targetImageFilePath)
                 }
                 val targetMdRef = migrationFileInfo.getTargetMdReferenceByRule(rule)
@@ -131,7 +179,7 @@ private fun checkAndModifyMdContent(file: File) {
 
 private fun isDirValid(dir: String) = File(dir).run { dir.isNotEmpty() && exists() && isDirectory }
 
-private fun collectImagesFromDir(rootDir: String, filter: (File) -> Boolean): List<File> {
+private fun collectFilesFromDir(rootDir: String, filter: (File) -> Boolean): List<File> {
     val images = mutableListOf<File>()
     File(rootDir).visitAllChildren {
         if (filter(it)) {
@@ -174,4 +222,8 @@ private fun File.isImage(): Boolean {
 
 private fun File.isMd(): Boolean {
     return exists() && isFile && (extension in mdFileExt)
+}
+
+private fun File.isPlantUml(): Boolean {
+    return exists() && isFile && (extension in plantUmlFileExt)
 }
