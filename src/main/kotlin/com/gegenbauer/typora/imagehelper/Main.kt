@@ -1,27 +1,10 @@
 package com.gegenbauer.typora.imagehelper
 
 import java.io.File
-import java.io.FileInputStream
-import java.io.FileOutputStream
-import java.lang.StringBuilder
 import java.util.regex.Pattern
 
 private const val TEMP_FILE_PREFIX = "temp"
 private const val UNUSED_IMAGE_FILE_DIR_NAME = "unused_image"
-
-private val imageFileExt = hashSetOf(
-    "png",
-    "svg",
-    "gif",
-)
-private val mdFileExt = hashSetOf(
-    "md",
-    "markdown",
-)
-private val plantUmlFileExt = hashSetOf(
-    "puml",
-    "plantuml",
-)
 
 private val migrationFileInfoMap = mutableMapOf<String, MigrationFileInfo>()
 
@@ -32,15 +15,9 @@ private val mdImageRefPattern = Pattern.compile("^!\\[[^]]*]\\(([^)]*)\\)")
 private var rule = MigrationRule.RULE_CURRENT
 
 /**
- * target path to move images to
- * only valid when rule is RULE_SPECIFIC
+ * target dir where need to sort images
  */
-var targetPath = ""
-
-/**
- * target dir to sort images
- */
-var typoraRootDir = ""
+private var typoraRootDir = ""
 
 // TODO 进一步验证功能，重构代码，编写单元测试
 fun main(args: Array<String>) {
@@ -68,13 +45,13 @@ fun main(args: Array<String>) {
 
         rule = MigrationRule.values()[args[1].toInt()]
         if (rule == MigrationRule.RULE_SPECIFIC) {
-            targetPath = args[2]
+            IMigration.specificImageDir = args[2]
         }
 
-        if (isDirValid(targetPath)) {
+        if (isDirValid(IMigration.specificImageDir)) {
             return
         }
-        println("rule: $rule, targetPath: $targetPath")
+        println("rule: $rule, targetPath: ${IMigration.specificImageDir}")
 
         // collect all images and md files
         collectFilesFromDir(typoraRootDir, File::isImage).forEach {
@@ -125,14 +102,6 @@ private fun movePlantUmlFileToSameFolderWithImageFile(plantUmlFile: File) {
     }
 }
 
-private fun String.getFilenameWithoutExt(): String {
-    return substringAfterLast(File.separator)
-}
-
-private fun String.getParentPath(): String {
-    return substringBeforeLast(File.separator)
-}
-
 /**
  * check content in md file, and replace the image reference
  * in order to make the image reference valid
@@ -142,29 +111,27 @@ private fun checkAndModifyMdContent(file: File) {
     val modifiedContent = StringBuilder()
     var isFileContentModified = false
     file.forEachLine { line ->
-        val matcher = mdImageRefPattern.matcher(line)
-        if (matcher.find()) {
-            val originMdRef = matcher.group(1)
-            val fileName = originMdRef.substringAfterLast("/")
-            val migrationFileInfo = migrationFileInfoMap[fileName]
-            if (migrationFileInfo != null) {
-                migrationFileInfo.referredMdFile = file
-                val targetImageFilePath = migrationFileInfo.getTargetImageFilePathByRule(rule)
-                val sourceAbsolutePath = migrationFileInfo.imageFile.absolutePath
-                if (targetImageFilePath != sourceAbsolutePath) {
-                    println("move image: $sourceAbsolutePath to ${migrationFileInfo.getTargetImageFilePathByRule(rule)}")
-                    migrationFileInfo.imageFile.xCopyTo(targetImageFilePath)
+        run loop@ {
+            val matcher = mdImageRefPattern.matcher(line)
+            if (matcher.find()) {
+                val originMdRef = matcher.group(1)
+                val filename = originMdRef.substringAfterLast("/")
+                val migrationFileInfo = migrationFileInfoMap[filename]
+                if (migrationFileInfo != null) {
+                    migrationFileInfo.referredMdFile = file
+
+                    rule.setTargetImageFilePath(migrationFileInfo)
+                    checkPathAndMoveFile(migrationFileInfo)
+
+                    rule.setTargetMdReference(migrationFileInfo)
+                    if (migrationFileInfo.targetMdReference != originMdRef) {
+                        println("modify line, origin: $originMdRef, target: ${migrationFileInfo.targetMdReference}")
+                        modifiedContent.appendLine(line.replace(originMdRef, migrationFileInfo.targetMdReference))
+                        isFileContentModified = true
+                        return@loop
+                    }
                 }
-                val targetMdRef = migrationFileInfo.getTargetMdReferenceByRule(rule)
-                if (targetMdRef != originMdRef) {
-                    println("modify line, origin: $originMdRef, target: $targetMdRef")
-                    modifiedContent.appendLine(line.replace(originMdRef, migrationFileInfo.getTargetMdReferenceByRule(rule)))
-                    isFileContentModified = true
-                }
-            } else {
-                modifiedContent.appendLine(line)
             }
-        } else {
             modifiedContent.appendLine(line)
         }
     }
@@ -177,53 +144,3 @@ private fun checkAndModifyMdContent(file: File) {
     }
 }
 
-private fun isDirValid(dir: String) = File(dir).run { dir.isNotEmpty() && exists() && isDirectory }
-
-private fun collectFilesFromDir(rootDir: String, filter: (File) -> Boolean): List<File> {
-    val images = mutableListOf<File>()
-    File(rootDir).visitAllChildren {
-        if (filter(it)) {
-            images.add(it)
-        }
-    }
-    return images
-}
-
-private fun File.visitAllChildren(onFileVisited: (File) -> Unit) {
-    listFiles()?.forEach {
-        if (it.isFile) {
-            onFileVisited(it)
-        } else if (it.isDirectory) {
-            it.visitAllChildren(onFileVisited)
-        }
-    }
-}
-
-/**
- * copy file and delete source file
- */
-private fun File.xCopyTo(dest: String) {
-    kotlin.runCatching {
-        FileInputStream(this).channel.use { source ->
-            FileOutputStream(dest).channel.use { dest ->
-                dest.transferFrom(source, 0, source.size())
-            }
-        }
-    }.onFailure {
-        println("copy file failed, source=${this.absoluteFile} dest=$dest")
-    }.onSuccess {
-        delete()
-    }
-}
-
-private fun File.isImage(): Boolean {
-    return exists() && isFile && (extension in imageFileExt)
-}
-
-private fun File.isMd(): Boolean {
-    return exists() && isFile && (extension in mdFileExt)
-}
-
-private fun File.isPlantUml(): Boolean {
-    return exists() && isFile && (extension in plantUmlFileExt)
-}
