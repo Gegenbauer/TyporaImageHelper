@@ -11,8 +11,10 @@ This tool can help you to do this automatically.
 # rule: 1 - move image file to the parent dir of the dir where relevant md file stored
 # rule: 2 - move the image file to a specified dir
 java -jar main.jar **/NutStore/note 0 
+java -jar main.jar **/NutStore/note 1
+java -jar main.jar **/NutStore/note 2 /Users/xxx/Pictures
 ```
-suggest you to init a git repo in the dir where you store your md files
-it will help you to track the changes of your md files
+suggest you to init a git repo in the dir where you store your md files, 
+and it will help you to track the changes of your md files
 
 Hope you try it and give me some feedback!
