@@ -8,6 +8,13 @@ private val imageFileExt = hashSetOf(
     "png",
     "svg",
     "gif",
+    "webp",
+    "jpg",
+    "jpeg",
+    "bmp",
+    "tiff",
+    "tif",
+    "awebp"
 )
 private val mdFileExt = hashSetOf(
     "md",
@@ -57,13 +64,49 @@ fun File.xCopyTo(dest: String) {
     }
 }
 
+fun File.xCopyTo(dest: File) {
+    xCopyTo(dest.absolutePath)
+}
+
+/**
+ * get relative path of target file from this file
+ * given file = "a/b/c/d/e.txt", targetFile = "a/b/c/f/g.txt", return "../f/g.txt"
+ */
+fun File.getRelativePath(target: File): String {
+    val thisPath = absolutePath
+    val targetPath = target.absolutePath
+    val thisPathList = thisPath.split(File.separator)
+    val targetPathList = targetPath.split(File.separator)
+    val commonPath = mutableListOf<String>()
+    for (i in 0 until minOf(thisPathList.size, targetPathList.size)) {
+        if (thisPathList[i] == targetPathList[i]) {
+            commonPath.add(thisPathList[i])
+        } else {
+            break
+        }
+    }
+    val thisPathDiff = thisPathList.subList(commonPath.size, thisPathList.size)
+    val targetPathDiff = targetPathList.subList(commonPath.size, targetPathList.size)
+    val relativePath = StringBuilder()
+    for (i in 0 until thisPathDiff.size - 1) {
+        relativePath.append("..${File.separator}")
+    }
+    for (i in targetPathDiff.indices) {
+        relativePath.append(targetPathDiff[i])
+        if (i != targetPathDiff.size - 1) {
+            relativePath.append(File.separator)
+        }
+    }
+    return relativePath.toString()
+}
+
 fun isDirValid(dir: String): Boolean {
     return File(dir).isDirValid()
 }
 
-fun checkAndCreateDir(dir: String) {
-    val dir = File(dir)
-    if (dir.exists().not() && dir.isDirectory) {
+fun checkAndCreateDir(dirPath: String) {
+    val dir = File(dirPath)
+    if (dir.exists().not()) {
         dir.mkdir()
     }
 }

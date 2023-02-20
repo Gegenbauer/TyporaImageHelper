@@ -14,7 +14,10 @@ java -jar main.jar **/NutStore/note 0
 java -jar main.jar **/NutStore/note 1
 java -jar main.jar **/NutStore/note 2 /Users/xxx/Pictures
 ```
-suggest you to init a git repo in the dir where you store your md files, 
+
+# Attention
+Make sure you have a copy of your md files before you use this tool.
+I suggest you to init a git repo in the dir where you store your md files, 
 and it will help you to track the changes of your md files
 
 Hope you try it and give me some feedback!

@@ -2,8 +2,9 @@ package com.gegenbauer.typora.imagehelper
 
 import java.io.File
 
-enum class MigrationRule : IMigration {
-    RULE_CURRENT {
+sealed class MigrationRule : IMigration {
+
+    object RuleCurrent : MigrationRule() {
         override fun setTargetImageFilePath(migrationFileInfo: MigrationFileInfo) {
             migrationFileInfo.referredMdFile?.let {
                 val targetDir = it.parentFile
@@ -17,8 +18,10 @@ enum class MigrationRule : IMigration {
                 migrationFileInfo.targetMdReference = "./${migrationFileInfo.imageFile.name}"
             }
         }
-    },
-    RULE_PARENT {
+
+    }
+
+    object RuleParent : MigrationRule() {
         override fun setTargetImageFilePath(migrationFileInfo: MigrationFileInfo) {
             migrationFileInfo.referredMdFile?.let {
                 val targetDir = it.parentFile.parentFile
@@ -32,15 +35,36 @@ enum class MigrationRule : IMigration {
                 migrationFileInfo.targetMdReference = "../${migrationFileInfo.imageFilename}"
             }
         }
-    },
-    RULE_SPECIFIC {
+    }
+
+    object RuleSpecific : MigrationRule() {
         override fun setTargetImageFilePath(migrationFileInfo: MigrationFileInfo) {
             val targetFile = File(IMigration.specificImageDir, migrationFileInfo.imageFilename)
             migrationFileInfo.targetPath = targetFile.absolutePath
         }
 
         override fun setTargetMdReference(migrationFileInfo: MigrationFileInfo) {
-            migrationFileInfo.targetMdReference = "${IMigration.specificImageDir}/${migrationFileInfo.imageFile.name}"
+            migrationFileInfo.apply {
+                targetMdReference = referredMdFile?.getRelativePath(File(targetPath)) ?: ""
+            }
+        }
+    }
+
+    companion object {
+        /**
+         * regex to match image reference in md file
+         */
+        val mdImageRefRegex = Regex("!\\[[^]]*]\\(([^)]*)\\)")
+        var rule: MigrationRule = RuleCurrent
+
+        fun parseRule(index: Int): MigrationRule {
+            return when (index) {
+                0 -> RuleCurrent
+                1 -> RuleParent
+                2 -> RuleSpecific
+                else -> RuleCurrent
+            }
         }
     }
 }
+
