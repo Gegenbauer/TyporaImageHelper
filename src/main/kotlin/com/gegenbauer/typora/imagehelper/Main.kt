@@ -20,9 +20,10 @@ private var typoraRootDir = ""
 
 // TODO 进一步验证功能，重构代码，编写单元测试
 fun main(args: Array<String>) {
-    if (args.first() == "-h") {
-        println(
-            """
+    runCatching {
+        if (args.first() == "-h") {
+            println(
+                """
             按照指定的规则移动文件夹下的图片，并修改 md 文件中相关引用，确保能成功引用
             请确保你的图片文件名不重复，否则可能会出现意想不到的问题
             param1: 需要处理的文件夹
@@ -32,11 +33,10 @@ fun main(args: Array<String>) {
                     2-specific:   移动到指定的文件夹下
                     
         """.trimIndent()
-        )
-        return
-    }
+            )
+            return
+        }
 
-    runCatching {
         typoraRootDir = args[0]
         if (!isDirValid(typoraRootDir)) {
             return
@@ -47,7 +47,9 @@ fun main(args: Array<String>) {
             IMigration.specificImageDir = args[2]
         }
 
-        if (isDirValid(IMigration.specificImageDir)) {
+        checkAndCreateDir(IMigration.specificImageDir)
+
+        if (IMigration.specificImageDir.isNotEmpty() && !isDirValid(IMigration.specificImageDir)) {
             return
         }
         println("rule: $rule, targetPath: ${IMigration.specificImageDir}")

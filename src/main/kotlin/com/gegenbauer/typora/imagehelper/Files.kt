@@ -61,6 +61,13 @@ fun isDirValid(dir: String): Boolean {
     return File(dir).isDirValid()
 }
 
+fun checkAndCreateDir(dir: String) {
+    val dir = File(dir)
+    if (dir.exists().not() && dir.isDirectory) {
+        dir.mkdir()
+    }
+}
+
 fun File.isDirValid(): Boolean {
     return exists() && isDirectory
 }
