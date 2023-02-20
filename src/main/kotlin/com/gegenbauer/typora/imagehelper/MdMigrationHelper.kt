@@ -8,6 +8,7 @@ object MdMigrationHelper {
     private const val UNUSED_IMAGE_FILE_DIR_NAME = "unused_image"
 
     private val migrationFileInfoMap = mutableMapOf<String, MigrationFileInfo>()
+
     /**
      * target dir where need to sort images
      */
@@ -57,8 +58,11 @@ object MdMigrationHelper {
             unusedImageDir.mkdirs()
         }
         migrationFileInfoMap.values.filter { it.referredMdFile == null }.forEach {
-            println("move unused image: ${it.imageFile.absolutePath} to ${unusedImageDir.absolutePath}")
-            it.imageFile.xCopyTo(File(unusedImageDir, it.imageFile.name).absolutePath)
+            val targetPath = File(unusedImageDir, it.imageFile.name).absolutePath
+            if (it.imageFile.absolutePath != targetPath) {
+                println("move unused image: ${it.imageFile.absolutePath} to $targetPath")
+                it.imageFile.xCopyTo(targetPath)
+            }
         }
     }
 
@@ -87,22 +91,24 @@ object MdMigrationHelper {
                 var tempLine = line
                 matchResults.forEach {
                     val originMdRef = it.groupValues[1]
-                    val filename = originMdRef.substringAfterLast(File.separator)
-                    val migrationFileInfo = migrationFileInfoMap[filename]
-                    if (migrationFileInfo != null) {
-                        migrationFileInfo.referredMdFile = file
+                    if (!(originMdRef.startsWith("http:") || originMdRef.startsWith("https:"))) {
+                        val filename = originMdRef.substringAfterLast(File.separator)
+                        val migrationFileInfo = migrationFileInfoMap[filename]
+                        if (migrationFileInfo != null) {
+                            migrationFileInfo.referredMdFile = file
 
-                        MigrationRule.rule.setTargetImageFilePath(migrationFileInfo)
-                        checkPathAndMoveFile(migrationFileInfo)
+                            MigrationRule.rule.setTargetImageFilePath(migrationFileInfo)
+                            checkPathAndMoveFile(migrationFileInfo)
 
-                        MigrationRule.rule.setTargetMdReference(migrationFileInfo)
-                        if (migrationFileInfo.targetMdReference != originMdRef) {
-                            println("modify line, origin: $originMdRef, target: ${migrationFileInfo.targetMdReference}")
-                            tempLine = tempLine.replace(originMdRef, migrationFileInfo.targetMdReference)
-                            isFileContentModified = true
+                            MigrationRule.rule.setTargetMdReference(migrationFileInfo)
+                            if (migrationFileInfo.targetMdReference != originMdRef) {
+                                println("modify line, origin: $originMdRef, target: ${migrationFileInfo.targetMdReference}")
+                                tempLine = tempLine.replace(originMdRef, migrationFileInfo.targetMdReference)
+                                isFileContentModified = true
+                            }
+                        } else {
+                            println("can not find image file: $filename in md file: ${file.absolutePath}")
                         }
-                    } else {
-                        println("can not find image file: $filename in md file: ${file.absolutePath}")
                     }
                 }
                 modifiedContent.appendLine(tempLine)

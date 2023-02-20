@@ -51,6 +51,9 @@ fun File.visitAllChildren(onFileVisited: (File) -> Unit) {
  * copy file and delete source file
  */
 fun File.xCopyTo(dest: String) {
+    if (this.absolutePath == dest) {
+        return
+    }
     kotlin.runCatching {
         FileInputStream(this).channel.use { source ->
             FileOutputStream(dest).channel.use { dest ->
@@ -60,9 +63,13 @@ fun File.xCopyTo(dest: String) {
     }.onFailure {
         println("copy file failed, source=${this.absoluteFile} dest=$dest")
     }.onSuccess {
-        delete()
+        if (File(dest).exists()) {
+            this.delete()
+        }
     }
 }
+
+
 
 fun File.xCopyTo(dest: File) {
     xCopyTo(dest.absolutePath)
