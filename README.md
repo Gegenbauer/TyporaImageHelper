@@ -1,7 +1,10 @@
 # TyporaImageHelper
-Make the image reference in md files match the real image path by moving image file or modify image reference
-When you sort your directory structure of your md files, you may find that the image reference in your md files is not correct.
+Make the image reference in md files match the real image path by moving image file or modifying image reference
+
+When you sort your directory structure of your md files, you may find that the image reference in your md files become unreachable.
+
 And you have to move the image file to the correct dir or modify the image reference in your md files manually.
+
 This tool can help you to do this automatically.
 
 # Usage
